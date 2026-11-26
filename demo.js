@@ -1,5 +1,5 @@
 // Servidor de mentiras para probar la interfaz sin tocar ninguna base.
-// Se usa cuando CONFIG.APPS_SCRIPT_URL está vacío o la página se abre con ?demo=1.
+// Solo se usa cuando la página se abre con ?demo=1.
 (function () {
   var portafolio = [
     [50196081, 'BUCHANAN DELUXE 20CL 12Y 04X06', "Buchanan's", true, true],

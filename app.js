@@ -1,10 +1,11 @@
 /* Chatbot Diageo — mismo flujo que el bot de WhatsApp de EFICACIA, en una página.
-   Toda la lógica de datos vive en el Apps Script; aquí solo se conversa. */
+   Toda la lógica de datos vive en el servidor (servidor/); aquí solo se conversa. */
 (function () {
   'use strict';
 
   var CFG = window.CONFIG || {};
-  var DEMO = !CFG.APPS_SCRIPT_URL || /[?&]demo=1/.test(location.search);
+  var API_URL = CFG.API_URL || '/api/chat';
+  var DEMO = /[?&]demo=1/.test(location.search);
   var $chat = document.getElementById('chat');
   var $opciones = document.getElementById('opciones');
   var $form = document.getElementById('formulario');
@@ -280,7 +281,9 @@
       else {
         var ctl = new AbortController();
         var t = setTimeout(function () { ctl.abort(); }, 90000);
-        var res = await fetch(CFG.APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(cuerpo), signal: ctl.signal });
+        var res = await fetch(API_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo), signal: ctl.signal
+        });
         clearTimeout(t);
         r = await res.json();
       }
@@ -584,8 +587,14 @@
     try { localStorage.setItem('chat-tema', r.dataset.theme); } catch (e) {}
     document.querySelector('meta[name="theme-color"]').setAttribute('content', oscuro ? '#f5f3ee' : '#0c1613');
   });
-  document.getElementById('chipPrueba').hidden = !DEMO;
-  document.getElementById('chipPrueba').textContent = DEMO ? 'Demo' : 'Prueba';
+  // Etiqueta de la barra: "Demo" con ?demo=1, "Prueba" si el servidor está en modo prueba.
+  var $chip = document.getElementById('chipPrueba');
+  if (DEMO) { $chip.textContent = 'Demo'; $chip.hidden = false; }
+  else {
+    fetch(API_URL).then(function (r) { return r.json(); }).then(function (r) {
+      if (r && r.modoPrueba) { $chip.textContent = 'Prueba'; $chip.hidden = false; }
+    }).catch(function () {});
+  }
 
   arrancar();
 })();
