@@ -4,7 +4,7 @@
   'use strict';
 
   var CFG = window.CONFIG || {};
-  var API_URL = CFG.API_URL || '/api/chat';
+  var API_URL = CFG.API_URL;
   var DEMO = /[?&]demo=1/.test(location.search);
   var $chat = document.getElementById('chat');
   var $opciones = document.getElementById('opciones');
@@ -273,6 +273,9 @@
 
   async function api(accion, datos) {
     var cuerpo = Object.assign({ accion: accion, cedula: sesion.cedula }, datos || {});
+    if (!DEMO && !API_URL) {
+      return { ok: false, sinRespuesta: true, error: 'La página todavía no tiene servidor configurado. Avisa al administrador.' };
+    }
     var yoGen = generacion;
     escribiendo(true);
     try {
@@ -590,7 +593,7 @@
   // Etiqueta de la barra: "Demo" con ?demo=1, "Prueba" si el servidor está en modo prueba.
   var $chip = document.getElementById('chipPrueba');
   if (DEMO) { $chip.textContent = 'Demo'; $chip.hidden = false; }
-  else {
+  else if (API_URL) {
     fetch(API_URL).then(function (r) { return r.json(); }).then(function (r) {
       if (r && r.modoPrueba) { $chip.textContent = 'Prueba'; $chip.hidden = false; }
     }).catch(function () {});
