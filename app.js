@@ -18,6 +18,37 @@
   var ultimoAutor = null;
   var generacion = 0;
 
+  /* Retomar: cada respuesta y cada resultado del servidor queda en `pasos` (y en el navegador,
+     ver memoria.js). Al volver a abrir la página, la conversación se recorre otra vez con esos
+     pasos, sin preguntar ni consultar al servidor, y sigue en vivo donde se quedó. */
+  var MEM = window.MEMORIA;
+  var pasos = [];
+  var repaso = null;            // { pasos, i } mientras se recorre lo guardado
+  var DESFASE = { desfase: true };
+
+  function anotar(paso) { pasos.push(paso); pasos = MEM.escribir(pasos); }
+
+  function tomarRepaso(tipo) {
+    if (!repaso) return null;
+    var p = repaso.pasos[repaso.i];
+    if (!p || p.t !== tipo) throw DESFASE;
+    repaso.i++;
+    pasos.push(p);
+    return p;
+  }
+
+  // Se llama después de pintar el paso: la marca queda justo debajo de lo último recuperado.
+  function siTerminoRepaso() {
+    if (!repaso || repaso.i < repaso.pasos.length) return;
+    repaso = null;
+    var s = document.createElement('div');
+    s.className = 'separador';
+    s.textContent = 'Retomaste la conversación donde la dejaste';
+    $chat.appendChild(s);
+    ultimoAutor = null;
+    abajo();
+  }
+
   /* ------------------------------------------------------------ pintar */
 
   // Los textos son los del bot de WhatsApp; en la página se pintan sin emojis (las palabras no cambian).
@@ -94,7 +125,9 @@
   }
 
   function pausa(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  async function dice(texto, clase) { escribiendo(true); await pausa(320); escribiendo(false); return bot(texto, clase); }
+  async function dice(texto, clase) {
+    if (repaso) return bot(texto, clase);
+    escribiendo(true); await pausa(320); escribiendo(false); return bot(texto, clase); }
 
   /* ------------------------------------------------------------ preguntar */
 
@@ -107,6 +140,8 @@
   }
 
   function esperar(tipo, extra) {
+    var guardado = tomarRepaso('r');
+    if (guardado) { limpiarOpciones(); pintarRespuesta(guardado); siTerminoRepaso(); return Promise.resolve(guardado.v); }
     return new Promise(function (resolver, rechazar) {
       espera = Object.assign({ resolver: resolver, rechazar: rechazar, tipo: tipo }, extra || {});
     });
@@ -116,8 +151,23 @@
     if (!espera) return;
     var e = espera; espera = null;
     limpiarOpciones();
-    if (mostrar !== false) yo(mostrar || String(valor));
+    var paso = { t: 'r', v: valor, m: mostrar === false ? false : (mostrar || String(valor)) };
+    pintarRespuesta(paso);
+    anotar(paso);
     e.resolver(valor);
+  }
+
+  // Lo que el usuario contestó, como burbuja suya. Sirve igual en vivo y al retomar.
+  function pintarRespuesta(p) {
+    if (p.k === 'ubicacion') {
+      var lat = p.v.lat, lon = p.v.lon;
+      burbuja('yo', '<span class="burbuja__ubicacion">' + icono('ubicacion') + '<a href="https://maps.google.com/?q=' + lat + ',' + lon + '" target="_blank" rel="noopener">Ubicación: ' + lat + ', ' + lon + '</a></span>');
+    } else if (p.k === 'foto') {
+      if (/^data:image\//.test(p.v)) burbuja('yo', '<img src="' + p.v + '" alt="Foto enviada">', 'burbuja--foto');
+      else yo('Foto enviada');
+    } else if (p.m !== false) {
+      yo(p.m);
+    }
   }
 
   // Texto libre (o número).
@@ -189,8 +239,9 @@
         var lat = +pos.coords.latitude.toFixed(6), lon = +pos.coords.longitude.toFixed(6);
         if (!espera) return;
         var e = espera; espera = null; limpiarOpciones();
-        burbuja('yo', '<span class="burbuja__ubicacion">' + icono('ubicacion') + '<a href="https://maps.google.com/?q=' + lat + ',' + lon + '" target="_blank" rel="noopener">Ubicación: ' + lat + ', ' + lon + '</a></span>');
-        e.resolver({ lat: lat, lon: lon });
+        var paso = { t: 'r', k: 'ubicacion', v: { lat: lat, lon: lon } };
+        pintarRespuesta(paso); anotar(paso);
+        e.resolver(paso.v);
       }, function () {
         b.disabled = false; b.lastChild.textContent = 'Compartir ubicación';
         bot('No pude leer tu ubicación. Activa el GPS y da permiso de ubicación al navegador, y vuelve a tocar el botón.', 'burbuja--error');
@@ -217,7 +268,8 @@
     comprimir(f).then(function (dataUrl) {
       if (!espera) return;
       var e = espera; espera = null; limpiarOpciones();
-      burbuja('yo', '<img src="' + dataUrl + '" alt="Foto enviada">', 'burbuja--foto');
+      var paso = { t: 'r', k: 'foto', v: dataUrl };
+      pintarRespuesta(paso); anotar(paso);
       e.resolver(dataUrl);
     }).catch(function () { bot('No pude leer la foto. Intenta otra vez.', 'burbuja--error'); });
   });
@@ -276,7 +328,20 @@
     if (!DEMO && !API_URL) {
       return { ok: false, sinRespuesta: true, error: 'La página todavía no tiene servidor configurado. Avisa al administrador.' };
     }
+    var escritura = ESCRITURAS.indexOf(accion) >= 0;
+    var guardado = tomarRepaso('api');
+    if (guardado) {
+      if (guardado.a !== accion) throw DESFASE;
+      siTerminoRepaso();
+      if (!guardado.pendiente) return guardado.r;
+      // La página se cerró mientras se enviaba: no se reenvía, porque pudo quedar guardado.
+      var r0 = { ok: false, sinRespuesta: true, error: 'La página se cerró mientras se enviaba la información. Puede que sí se haya guardado: no la envíes otra vez y avísale a tu supervisor.' };
+      pasos[pasos.length - 1] = { t: 'api', a: accion, w: true, r: r0 };
+      pasos = MEM.escribir(pasos);
+      return r0;
+    }
     var yoGen = generacion;
+    if (escritura) anotar({ t: 'api', a: accion, w: true, pendiente: true });
     escribiendo(true);
     try {
       var r;
@@ -284,26 +349,48 @@
       else {
         var ctl = new AbortController();
         var t = setTimeout(function () { ctl.abort(); }, 90000);
-        var res = await fetch(API_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo), signal: ctl.signal
-        });
-        clearTimeout(t);
-        r = await res.json();
+        var res;
+        try {
+          res = await fetch(API_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo), signal: ctl.signal
+          });
+        } finally { clearTimeout(t); }
+        // Si el servidor está caído, Railway responde con su propia página de error, no con JSON.
+        try { r = await res.json(); } catch (e) { r = null; }
+        if (!r || typeof r !== 'object') throw { servidorCaido: true, status: res.status };
       }
       escribiendo(false);
       if (yoGen !== generacion) throw RESET;
-      return r;
+      return resultado(accion, escritura, r);
     } catch (e) {
       if (e === RESET) throw e;
       escribiendo(false);
-      var escritura = ESCRITURAS.indexOf(accion) >= 0;
-      return {
-        ok: false, sinRespuesta: true,
-        error: escritura
-          ? 'La conexión se cayó y puede que la información sí se haya guardado. No la envíes otra vez: avísale a tu supervisor.'
-          : 'No hay conexión con el servidor. Revisa tus datos o wifi e intenta de nuevo.'
-      };
+      if (yoGen !== generacion) throw RESET;
+      return resultado(accion, escritura, { ok: false, sinRespuesta: true, error: mensajeSinRespuesta(e, escritura) });
     }
+  }
+
+  // Anota lo que contestó el servidor (en un envío, reemplaza la marca de "pendiente").
+  function resultado(accion, escritura, r) {
+    var paso = { t: 'api', a: accion, w: escritura, r: r };
+    if (escritura) { pasos[pasos.length - 1] = paso; pasos = MEM.escribir(pasos); }
+    else anotar(paso);
+    return r;
+  }
+
+  function mensajeSinRespuesta(e, escritura) {
+    var sinInternet = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (sinInternet) {
+      return 'Tu celular no tiene internet en este momento. Revisa tus datos o wifi e intenta de nuevo.';
+    }
+    if (escritura) {
+      // Railway devolvió 502/503 sin llegar al chat: ahí sí es seguro decir que no se guardó.
+      if (e && e.servidorCaido && (e.status === 502 || e.status === 503)) {
+        return 'El servidor del chat no está disponible y no se guardó nada. Intenta de nuevo en unos minutos.';
+      }
+      return 'La conexión se cayó y puede que la información sí se haya guardado. No la envíes otra vez: avísale a tu supervisor.';
+    }
+    return 'El servidor del chat no está respondiendo. Intenta de nuevo en unos minutos; si sigue igual, avisa a tu supervisor.';
   }
 
   async function exigir(accion, datos) {
@@ -562,12 +649,17 @@
 
   function reiniciar() {
     if (espera) { var e = espera; espera = null; e.rechazar(RESET); }
-    else arrancar();   // si había una consulta en curso, su respuesta se descarta (generación distinta)
+    else arrancar(false);   // si había una consulta en curso, su respuesta se descarta (generación distinta)
   }
 
-  function arrancar() {
+  // retomar = true solo al abrir la página; /reset, la salida o un error empiezan de cero.
+  function arrancar(retomar) {
     $chat.innerHTML = ''; ultimoAutor = null; limpiarOpciones(); escribiendo(false);
     sesion = { cedula: null, usuario: null, registro: null, catalogo: null };
+    pasos = [];
+    var guardados = retomar ? MEM.leer() : [];
+    if (!retomar) MEM.borrar();
+    repaso = guardados.length ? { pasos: guardados, i: 0 } : null;
     if (DEMO) {
       var s = document.createElement('div');
       s.className = 'separador';
@@ -576,8 +668,11 @@
     }
     var miGen = ++generacion;
     conversacion().catch(function (e) {
-      if (e === RESET) { if (miGen === generacion) arrancar(); return; }
+      if (e === RESET) { if (miGen === generacion) arrancar(false); return; }
+      // Lo guardado ya no coincide con el flujo (p. ej. se publicó una versión nueva): empezar limpio.
+      if (e === DESFASE) { if (miGen === generacion) arrancar(false); return; }
       console.error(e);
+      repaso = null; MEM.borrar();
       bot('Algo salió mal. Escribe /reset para empezar de nuevo.', 'burbuja--error');
     });
   }
@@ -599,5 +694,5 @@
     }).catch(function () {});
   }
 
-  arrancar();
+  arrancar(true);
 })();
