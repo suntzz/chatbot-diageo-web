@@ -19,6 +19,20 @@
 
   /* ------------------------------------------------------------ pintar */
 
+  // Los textos son los del bot de WhatsApp; en la página se pintan sin emojis (las palabras no cambian).
+  var EMOJI = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\uFE0F\u200D]/gu;
+  function sinEmoji(texto) {
+    return String(texto).replace(EMOJI, '').replace(/[ \t]+(\n|$)/g, '$1').replace(/^[ \t]+/gm, '').replace(/ {2,}/g, ' ');
+  }
+
+  var ICONO = {
+    ubicacion: '<path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
+    camara: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'
+  };
+  function icono(nombre) {
+    return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONO[nombre] + '</svg>';
+  }
+
   function formato(texto) {
     var t = String(texto)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -34,7 +48,7 @@
     if (autor === 'bot') {
       var a = document.createElement('div');
       a.className = 'avatar';
-      a.innerHTML = '<img src="marca/rutero-simbolo.svg" alt="">';
+      a.innerHTML = '<img class="solo-claro" src="marca/rutero-simbolo.svg" alt=""><img class="solo-oscuro" src="marca/rutero-simbolo-oscuro.svg" alt="">';
       f.appendChild(a);
     }
     ultimoAutor = autor;
@@ -54,13 +68,13 @@
     return b;
   }
 
-  function bot(texto, clase) { return burbuja('bot', formato(texto), clase); }
+  function bot(texto, clase) { return burbuja('bot', formato(sinEmoji(texto)), clase); }
   function yo(texto) { return burbuja('yo', formato(texto)); }
 
   function ficha(titulo, pares) {
-    var html = titulo ? formato(titulo) : '';
+    var html = titulo ? formato(sinEmoji(titulo)) : '';
     html += '<dl class="ficha">' + pares.map(function (p) {
-      return '<div><dt>' + formato(p[0]) + '</dt><dd>' + formato(p[1]) + '</dd></div>';
+      return '<div><dt>' + formato(sinEmoji(p[0])) + '</dt><dd>' + formato(p[1]) + '</dd></div>';
     }).join('') + '</dl>';
     return burbuja('bot', html);
   }
@@ -140,18 +154,21 @@
       var li = document.createElement('li');
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.innerHTML = '<span class="num">' + (i + 1) + '</span><span>' + formato(txt) + '</span>';
+      btn.innerHTML = '<span class="num">' + (i + 1) + '</span><span>' + formato(sinEmoji(txt)) + '</span>';
       btn.addEventListener('click', function () { responder(i, String(i + 1)); });
       li.appendChild(btn); ul.appendChild(li);
     });
     b.appendChild(ul);
-    if (pie) { var p = document.createElement('div'); p.innerHTML = '<br>' + formato(pie); b.appendChild(p); }
+    if (pie) { var p = document.createElement('div'); p.className = 'burbuja__pie'; p.innerHTML = formato(sinEmoji(pie)); b.appendChild(p); }
     abajo();
     limpiarOpciones();
     bloquearEntrada(false, 'Toca o escribe el número');
     $entrada.inputMode = 'numeric';
     return esperar('indice', { total: items.length, ul: ul }).then(function (i) {
-      ul.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+      ul.querySelectorAll('button').forEach(function (x, j) {
+        x.disabled = true;
+        if (j === i) { x.classList.add('elegido'); x.setAttribute('aria-current', 'true'); }
+      });
       return i;
     });
   }
@@ -161,7 +178,7 @@
     bloquearEntrada(true, 'Comparte tu ubicación');
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'opcion opcion--principal';
-    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>Compartir ubicación';
+    b.innerHTML = icono('ubicacion') + 'Compartir ubicación';
     $opciones.appendChild(b);
     var p = esperar('ubicacion');
     b.addEventListener('click', function () {
@@ -171,7 +188,7 @@
         var lat = +pos.coords.latitude.toFixed(6), lon = +pos.coords.longitude.toFixed(6);
         if (!espera) return;
         var e = espera; espera = null; limpiarOpciones();
-        burbuja('yo', '📍 <a href="https://maps.google.com/?q=' + lat + ',' + lon + '" target="_blank" rel="noopener">Ubicación: ' + lat + ', ' + lon + '</a>');
+        burbuja('yo', '<span class="burbuja__ubicacion">' + icono('ubicacion') + '<a href="https://maps.google.com/?q=' + lat + ',' + lon + '" target="_blank" rel="noopener">Ubicación: ' + lat + ', ' + lon + '</a></span>');
         e.resolver({ lat: lat, lon: lon });
       }, function () {
         b.disabled = false; b.lastChild.textContent = 'Compartir ubicación';
@@ -186,7 +203,7 @@
     bloquearEntrada(true, 'Toma la foto');
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'opcion opcion--principal';
-    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>' + (texto || 'Tomar foto');
+    b.innerHTML = icono('camara') + (texto || 'Tomar foto');
     $opciones.appendChild(b);
     var p = esperar('foto');
     b.addEventListener('click', function () { $camara.value = ''; $camara.click(); });

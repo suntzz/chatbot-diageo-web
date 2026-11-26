@@ -19,21 +19,21 @@
   <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
-  <div class="fondo" aria-hidden="true"><div class="fondo__malla"></div><div class="fondo__grano"></div></div>
-
   <header class="barra">
     <div class="barra__contenido">
       <div class="marca">
         <img class="logo" src="marca/eficacia.png" alt="Eficacia" width="94" height="32">
-        <span class="chip chip--oscuro">Diageo</span>
-        <span class="chip chip--prueba" id="chipPrueba" hidden>Prueba</span>
+        <span class="marca__cliente">Diageo
+          <span class="etiqueta" id="chipPrueba" hidden>Prueba</span>
+        </span>
       </div>
       <div class="barra__der">
         <button class="icono" id="btnTema" type="button" aria-label="Cambiar modo claro u oscuro">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a6 6 0 1 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          <svg class="solo-claro" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 1 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          <svg class="solo-oscuro" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
         </button>
         <button class="icono" id="btnReset" type="button" aria-label="Empezar de nuevo">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
         </button>
       </div>
     </div>
@@ -46,7 +46,7 @@
     <form class="composer__barra" id="formulario" autocomplete="off">
       <input id="entrada" type="text" placeholder="Escribe un mensaje" aria-label="Mensaje" enterkeyhint="send">
       <button class="enviar" type="submit" aria-label="Enviar">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
       </button>
     </form>
   </footer>
